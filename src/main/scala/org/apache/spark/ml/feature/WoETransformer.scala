@@ -27,7 +27,7 @@ private[feature] trait WoEParams
     if (schema.fieldNames.contains(outputColName)) {
       throw new IllegalArgumentException(s"Output column $outputColName already exists.")
     }
-    StructType(schema.fields :+ new StructField(outputColName, DoubleType, true))
+    StructType(schema.fields :+ StructField(outputColName, DoubleType, nullable = true))
   }
 }
 
@@ -37,19 +37,19 @@ private[feature] trait WoEParams
  *
  *    (Distribution of Good Credit Outcomes) / (Distribution of Bad Credit Outcomes)
  *
- * Or the ratios of Distr Goods / Distr Bads for short, where Distr refers to the proportion of Goods or Bads in the
- * respective group, relative to the column totals, i.e., expressed as relative proportions of the total number of
- * Goods and Bads.
+ * Or the ratios of distribution "Good" / distribution "Bad" for short, where distribution refers to the proportion of Good (positive) or Bad (negative) in the
+ * respective group, relative to the column totals, i.e., expressed as relative proportions of the total number of Good and Bad.
  *
- * In addition, the information value or IV can be computed based on WoE.  It expresses the amount of diagnostic
- * information of a predictor variable for separating the Goods from the Bads. Low values mean the WoE can simply be
- * ignored (ie. <0.02)
+ * In addition, the information value or IV can be computed based on WoE.  It expresses the amount of diagnostic information of a predictor variable for separating
+ * the Good from the Bad. Low values mean the WoE can simply be ignored (ie. <0.02)
  *
  * See https://documentation.statsoft.com/STATISTICAHelp.aspx?path=WeightofEvidence/WeightofEvidenceWoEIntroductoryOverview
  *
- * TODO: estimate the proper grouping for continuous feature.
+ * The only differences from the above outlines algorithm is that we do not multiply by 100. This is consistent with the Python package we use from XAM.
+ *
  * TODO: Remove internal APIs so it can sit outside the org.apache package
- * TODO: Handle out of fold
+ * TODO: Handle out of fold encoding
+ * TODO: Handle multi column
  */
 @Experimental
 @Since("2.4.0")
@@ -114,7 +114,8 @@ object WoETransformer{
       categoryCol,
       s"1count/$total1 AS p1",
       s"0count/$total0 AS p0",
-      s"LOG(($err + 1count) / $total1 * $total0 / (0count + $err)) AS woe")
+      s"LOG(($err + 1count) / $total1 * $total0 / (0count + $err)) AS woe"
+    )
   }
 }
 
@@ -128,8 +129,6 @@ class WoEModel private[ml] (override val uid: String,
     // validateParams()
     val iv = woeTable.selectExpr("SUM(woe * (p1 - p0)) as iv").first().getAs[Double](0)
     logInfo(s"iv value for ${$(inputCol)} is: $iv")
-    val spark = woeTable.sparkSession
-    import spark.implicits._
 
     val woeMap = woeTable.rdd.map(r => {
       val category = r.get(0)
@@ -137,7 +136,7 @@ class WoEModel private[ml] (override val uid: String,
       (category, woe)
     }).collectAsMap()
 
-    val trans = udf { (factor: Any) => woeMap.get(factor) }
+    val trans = udf { factor: Any => woeMap.get(factor) }
     dataset.withColumn($(outputCol), trans(col($(inputCol))))
   }
 
@@ -179,7 +178,7 @@ object WoEModel extends MLReadable[WoEModel] {
       val dataPath = new Path(path, "data").toString
       val data = sqlContext.read.parquet(dataPath)
       val model = new WoEModel(metadata.uid, data)
-      // TODO: Not sure where this method is now.. DefaultParamsReader.getAndSetParams(model, metadata)
+      metadata.getAndSetParams(model)
       model
     }
   }
