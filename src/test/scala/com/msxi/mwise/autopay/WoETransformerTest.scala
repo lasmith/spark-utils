@@ -6,6 +6,14 @@ import org.apache.spark.sql.{Row, SparkSession}
 import org.scalactic.TolerantNumerics
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
+
+/**
+ * <br> <br>
+ * Copyright:    Copyright (c) 2019 <br>
+ * Company:      MSX-International  <br>
+ *
+ * @author Laurence Smith
+ */
 class WoETransformerTest extends FlatSpec with Matchers with BeforeAndAfter {
   var sparkSession: SparkSession = _
 
