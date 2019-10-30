@@ -4,7 +4,7 @@ import org.apache.spark.ml.Transformer
 import org.apache.spark.ml.feature.SQLTransformer
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 
 /**
@@ -15,7 +15,7 @@ import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
  *
  * @author Laurence Smith
  */
-class DateFeatureTransformer(override val uid: String) extends Transformer {
+class TimestampFeatureTransformer(override val uid: String) extends Transformer {
 
   def this() = this(Identifiable.randomUID("dateFeature"))
 
@@ -26,7 +26,7 @@ class DateFeatureTransformer(override val uid: String) extends Transformer {
 
   final def getInputCol: String = $(inputCol)
 
-  final def setInputCol(value: String): DateFeatureTransformer = {
+  final def setInputCol(value: String): TimestampFeatureTransformer = {
     set(inputCol, value)
     val statement =
       s"""SELECT *,
@@ -46,7 +46,7 @@ class DateFeatureTransformer(override val uid: String) extends Transformer {
 
   final def getOutputCol: String = $(outputCol)
 
-  final def setOutputCol(value: String): DateFeatureTransformer = set(outputCol, value)
+  final def setOutputCol(value: String): TimestampFeatureTransformer = set(outputCol, value)
 
   final val statement: Param[String] = new Param[String](this, "statement", "SQL statement")
 
@@ -67,6 +67,10 @@ class DateFeatureTransformer(override val uid: String) extends Transformer {
   }
 
   override def transformSchema(schema: StructType): StructType = {
+    val actualDataType = schema($(inputCol)).dataType
+    require(actualDataType.equals(DataTypes.TimestampType),
+      s"Column ${$(inputCol)} must be TimestampType but was actually $actualDataType.")
+
     val spark = SparkSession.builder().getOrCreate()
     val dummyRDD = spark.sparkContext.parallelize(Seq(Row.empty))
     val dummyDF = spark.createDataFrame(dummyRDD, schema)
@@ -81,7 +85,7 @@ class DateFeatureTransformer(override val uid: String) extends Transformer {
   override def copy(extra: ParamMap): SQLTransformer = defaultCopy(extra)
 }
 
-object DateFeatureTransformer extends DefaultParamsReadable[DateFeatureTransformer] {
+object TimestampFeatureTransformer extends DefaultParamsReadable[TimestampFeatureTransformer] {
 
-  override def load(path: String): DateFeatureTransformer = super.load(path)
+  override def load(path: String): TimestampFeatureTransformer = super.load(path)
 }

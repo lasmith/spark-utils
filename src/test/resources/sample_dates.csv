@@ -1,3 +1,3 @@
-date_time,test_col
-"2019-02-08 01:01:01", "foo"
-"2019-03-09 01:01:01", "bar"
+date_time,test_col,exp_date_time_year,exp_date_time_month,exp_date_time_day,exp_date_time_hour,exp_date_time_minute
+"2019-02-08 01:03:13","foo",2019,2,8,1,3
+"2018-03-09 19:23:01","bar",2018,3,9,19,23
