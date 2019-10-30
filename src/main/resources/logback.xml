@@ -1,0 +1,16 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %logger - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.apache" level="WARN"/>
+    <logger name="org.spark" level="WARN"/>
+    <logger name="org.spark_project" level="WARN"/>
+    <logger name="com.msxi.mwise" level="DEBUG"/>
+
+    <root level="info">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

@@ -21,6 +21,7 @@ libraryDependencies ++= Seq(
   "org.jmockit" % "jmockit" % "1.34" % "test",
   "com.github.scopt" %% "scopt" % "3.5.0",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
 
   // Test Resources
   "org.scalatest" %% "scalatest" % "3.0.8" % "test",
