@@ -2,6 +2,7 @@ package com.msxi.mwise.autopay
 
 import org.apache.spark.ml.Transformer
 import org.apache.spark.ml.feature.SQLTransformer
+import org.apache.spark.ml.param.shared.HasInputCols
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.types.{DataTypes, StructType}
@@ -15,38 +16,25 @@ import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
  *
  * @author Laurence Smith
  */
-class TimestampFeatureTransformer(override val uid: String) extends Transformer {
+class TimestampFeatureTransformer(override val uid: String) extends Transformer with HasInputCols {
 
   def this() = this(Identifiable.randomUID("dateFeature"))
 
-  /**
-   * Param for input column name.
-   */
-  final val inputCol: Param[String] = new Param[String](this, "inputCol", "input column name")
-
-  final def getInputCol: String = $(inputCol)
-
-  final def setInputCol(value: String): TimestampFeatureTransformer = {
-    set(inputCol, value)
-    val statement =
-      s"""SELECT *,
-         | year(${value}) AS ${value}_year,
-         | month(${value}) AS ${value}_month,
-         | dayofmonth(${value}) AS ${value}_day,
-         | hour(date_time) as ${value}_hour,
-         | minute(date_time) as ${value}_minute
-         | FROM __THIS__""".stripMargin.filter(_ != '\n')
-    setStatement(statement)
+  /** @group setParam */
+  def setInputCols(values: Array[String]): this.type = {
+    set(inputCols, values)
+    setStatement(generateStatement(values))
   }
 
-  /**
-   * Param for output column name.
-   */
-  final val outputCol: Param[String] = new Param[String](this, "outputCol", "output column name")
-
-  final def getOutputCol: String = $(outputCol)
-
-  final def setOutputCol(value: String): TimestampFeatureTransformer = set(outputCol, value)
+  final def generateStatement(values: Array[String]): String = {
+    val strings: Array[String] = values.map(value =>
+      s""" year(${value}) AS ${value}_year,
+         | month(${value}) AS ${value}_month,
+         | dayofmonth(${value}) AS ${value}_day,
+         | hour(${value}) as ${value}_hour,
+         | minute(${value}) as ${value}_minute, """)
+    s"""SELECT *, ${strings.mkString(" ").dropRight(2)} FROM __THIS__""".stripMargin.filter(_ != '\n')
+  }
 
   final val statement: Param[String] = new Param[String](this, "statement", "SQL statement")
 
@@ -56,7 +44,7 @@ class TimestampFeatureTransformer(override val uid: String) extends Transformer 
   private val tableIdentifier: String = "__THIS__"
 
   override def transform(dataset: Dataset[_]): DataFrame = {
-    transformSchema(dataset.schema, logging = true)
+    transformSchema(dataset.schema, logging = false)
     val tableName = Identifiable.randomUID(uid)
     dataset.createOrReplaceTempView(tableName)
     val realStatement = $(statement).replace(tableIdentifier, tableName)
@@ -67,9 +55,11 @@ class TimestampFeatureTransformer(override val uid: String) extends Transformer 
   }
 
   override def transformSchema(schema: StructType): StructType = {
-    val actualDataType = schema($(inputCol)).dataType
-    require(actualDataType.equals(DataTypes.TimestampType),
-      s"Column ${$(inputCol)} must be TimestampType but was actually $actualDataType.")
+    $(inputCols).toSeq.foreach(inputCol => {
+      val actualDataType = schema(inputCol).dataType
+      require(actualDataType.equals(DataTypes.TimestampType),
+        s"Column ${inputCol} must be TimestampType but was actually $actualDataType.")
+    })
 
     val spark = SparkSession.builder().getOrCreate()
     val dummyRDD = spark.sparkContext.parallelize(Seq(Row.empty))
