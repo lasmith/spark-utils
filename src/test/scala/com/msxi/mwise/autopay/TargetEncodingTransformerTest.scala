@@ -1,6 +1,9 @@
 package com.msxi.mwise.autopay
 
-import org.apache.spark.ml.feature.TargetEncodingTransformer
+import java.io.File
+
+import org.apache.commons.io.FileDeleteStrategy
+import org.apache.spark.ml.feature.{TargetEncodingModel, TargetEncodingTransformer}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.scalactic.TolerantNumerics
@@ -53,12 +56,110 @@ class TargetEncodingTransformerTest extends FlatSpec with Matchers with BeforeAn
       (true, "ef", 1d),
       (false, "gh", 0d)
     )).toDF("label", "feature", "expected")
-    runTransformAndCheck(df, smoothingEnabled = false)
+    runFitAndCheck(df, smoothingEnabled = false)
   }
 
   it should " return a new dataframe with the target encoded column given int(1|0) target" in {
     // Given
-    val df = sparkSession.createDataFrame(Seq(
+    val df = getBasicDataFrame
+    runFitAndCheck(df, smoothingEnabled = false)
+  }
+
+  it should " return a new dataframe with the target encoded column given boolean target and smoothing" in {
+    // Given
+    val globalMean = 0.5714285714285714
+    val weight = 100
+    val df: DataFrame = getSmoothedDataFrame(globalMean, weight)
+    runFitAndCheck(df, smoothingEnabled = true, smoothingWeight = weight)
+  }
+
+  behavior of "persistence API"
+
+  it should " save a model to file" in {
+    // Given
+    val df = getBasicDataFrame
+    val model = runFit(df, smoothingEnabled = false, smoothingWeight = 100)
+
+    val file = new File(TestUtils.getTestResourceDir, "out_model")
+    FileDeleteStrategy.FORCE.delete(file)
+    println(s"Saving model to $file")
+    model.save(file.getAbsolutePath)
+  }
+
+  it should " load a model from file and correctly fit / encode basic" in {
+    // Given
+    val df = getBasicDataFrame
+    val model = runFit(df, smoothingEnabled = false, smoothingWeight = 100)
+
+    // When
+    val file = new File(TestUtils.getTestResourceDir, "out_model")
+    FileDeleteStrategy.FORCE.delete(file)
+    println(s"Saving model to $file")
+    model.save(file.getAbsolutePath)
+    val modelFromDisk = TargetEncodingModel.load(file.getAbsolutePath)
+
+    // Then
+    checkDataFrame(df, modelFromDisk)
+
+  }
+
+  it should " load a model from file and correctly fit / encode smoothed" in {
+    // Given
+    val globalMean = 0.5714285714285714
+    val weight = 100
+    val df: DataFrame = getSmoothedDataFrame(globalMean, weight)
+    val model = runFit(df, smoothingEnabled = true, smoothingWeight = 100)
+
+    // When
+    val file = new File(TestUtils.getTestResourceDir, "out_model")
+    FileDeleteStrategy.FORCE.delete(file)
+    println(s"Saving model to $file")
+    model.save(file.getAbsolutePath)
+    val modelFromDisk = TargetEncodingModel.load(file.getAbsolutePath)
+
+    // Then
+    checkDataFrame(df, modelFromDisk)
+
+  }
+
+  // ---------------------------------------- HELPERS ----------------------------------------
+
+  private def getSmoothedMean(globalMean: Double, weight: Int, noOfRecords: Int, mean: Double) = {
+    (noOfRecords * mean + weight * globalMean) / (noOfRecords + weight)
+  }
+
+  private def runFit(df: DataFrame, smoothingEnabled: Boolean, smoothingWeight: Double) = {
+    val transformer = new TargetEncodingTransformer()
+      .setInputCol("feature")
+      .setOutputCol("te")
+      .setSmoothingEnabled(smoothingEnabled)
+      .setSmoothingWeight(smoothingWeight)
+
+    // When
+    val model = transformer.fit(df)
+    model
+  }
+
+  private def runFitAndCheck(df: DataFrame, smoothingEnabled: Boolean, smoothingWeight: Double = 100d) = {
+    val model: TargetEncodingModel = runFit(df, smoothingEnabled, smoothingWeight)
+    checkDataFrame(df, model)
+  }
+
+  private def checkDataFrame(df: DataFrame, model: TargetEncodingModel) = {
+    // Then
+    model should not be null
+    val epsilon = 1e-4f
+    implicit val doubleEq = TolerantNumerics.tolerantDoubleEquality(epsilon)
+    val rows = model.transform(df).collect()
+    for (r <- rows) {
+      val encVal = r.getAs[Double]("te")
+      val expected = r.getAs[Double]("expected")
+      assert(encVal === expected, r.getAs[String]("feature")) // roughly equal to 4dp based on epsilon above to avoid floating point issues..
+    }
+  }
+
+  private def getBasicDataFrame = {
+    sparkSession.createDataFrame(Seq(
       (1, "ab", 0.6666),
       (0, "ab", 0.6666),
       (1, "ab", 0.6666),
@@ -67,14 +168,9 @@ class TargetEncodingTransformerTest extends FlatSpec with Matchers with BeforeAn
       (1, "ef", 1d),
       (0, "gh", 0d)
     )).toDF("label", "feature", "expected")
-    runTransformAndCheck(df, smoothingEnabled = false)
   }
 
-
-  it should " return a new dataframe with the target encoded column given boolean target and smoothing" in {
-    // Given
-    val globalMean = 0.5714285714285714
-    val weight = 100
+  private def getSmoothedDataFrame(globalMean: Double, weight: Int) = {
     val ab = getSmoothedMean(globalMean, weight, 3, 0.6666)
     val cd = getSmoothedMean(globalMean, weight, 2, 0.5)
     val ef = getSmoothedMean(globalMean, weight, 1, 1)
@@ -88,33 +184,6 @@ class TargetEncodingTransformerTest extends FlatSpec with Matchers with BeforeAn
       (true, "ef", ef),
       (false, "gh", gh)
     )).toDF("label", "feature", "expected")
-    runTransformAndCheck(df, smoothingEnabled = true, smoothingWeight = weight)
-  }
-
-
-  private def getSmoothedMean(globalMean: Double, weight: Int, noOfRecords: Int, mean: Double) = {
-    (noOfRecords * mean + weight * globalMean) / (noOfRecords + weight)
-  }
-
-  private def runTransformAndCheck(df: DataFrame, smoothingEnabled: Boolean, smoothingWeight: Double = 100d) = {
-    val transformer = new TargetEncodingTransformer()
-      .setInputCol("feature")
-      .setOutputCol("te")
-      .setSmoothingEnabled(smoothingEnabled)
-      .setSmoothingWeight(smoothingWeight)
-
-    // When
-    val model = transformer.fit(df)
-
-    // Then
-    model should not be null
-    val epsilon = 1e-4f
-    implicit val doubleEq = TolerantNumerics.tolerantDoubleEquality(epsilon)
-    val rows = model.transform(df).collect()
-    for (r <- rows) {
-      val encVal = r.getAs[Double]("te")
-      val expected = r.getAs[Double]("expected")
-      assert(encVal === expected, r.getAs[String]("feature")) // roughly equal to 4dp based on epsilon above to avoid floating point issues..
-    }
+    df
   }
 }
