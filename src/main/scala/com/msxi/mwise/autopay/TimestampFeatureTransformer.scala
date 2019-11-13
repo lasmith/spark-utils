@@ -12,7 +12,7 @@ import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
  * A transformer to handle splitting dates into their component parts (year / month etc). Most of
  * the code comes from the SQLTransformer withing the spark source.
  *
- * TODO: Handle multi column, add options for which components to extract (eg date / time)
+ * TODO: add options for which components to extract (eg date / time)
  *
  * @author Laurence Smith
  */
