@@ -2,32 +2,59 @@ package org.apache.spark.ml.feature
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.annotation.{Experimental, Since}
-import org.apache.spark.ml.feature.WoEModel.WoEModelWriter
-import org.apache.spark.ml.param.shared.{HasInputCol, HasLabelCol, HasOutputCol}
-import org.apache.spark.ml.param.{ParamMap, Params}
+import org.apache.spark.ml.feature.WoEModel.{WoEModelWriter, WoeTableWrapper}
+import org.apache.spark.ml.param.shared.{HasInputCols, HasLabelCol}
+import org.apache.spark.ml.param.{Param, ParamMap, Params}
 import org.apache.spark.ml.util._
 import org.apache.spark.ml.{Estimator, Model}
-import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
+import org.apache.spark.sql.{DataFrame, Dataset}
+
+import scala.collection.mutable.ListBuffer
 
 private[feature] trait WoEParams
-  extends Params with HasInputCol with HasLabelCol with HasOutputCol {
+  extends Params with HasInputCols with HasLabelCol {
+
+  def setInputCols(values: Array[String]): this.type = set(inputCols, values)
+
+  /**
+   * Set the column name which is used as binary classes label column. The data type can be
+   * boolean or numeric, which has at most two distinct values.
+   *
+   * @group setParam */
+  def setLabelCol(value: String): this.type = set(labelCol, value)
+
+  /**
+   * The output col postfix is the text appended to the input columns when its encoded
+   */
+  final val outputColPostFix: Param[String] = new Param[String](this, "outputColPostFix", "The post fix to add to the input column name")
+
+  def setOutputColPostFix(value: String): this.type = set(outputColPostFix, value)
 
   /** Validates and transforms the input schema. */
   protected def validateAndTransformSchema(schema: StructType): StructType = {
-    require(isDefined(inputCol),
-      s"WoETransformer requires input column parameter: $inputCol")
-    require(isDefined(outputCol),
-      s"WoETransformer requires output column parameter: $outputCol")
+    require(isDefined(inputCols),
+      s"WoETransformer requires input column parameter: $inputCols")
+    // TODO: Val;idate output col
+    //    require(isDefined(outputColPostFix),
+    //      s"WoETransformer requires output column parameter: $outputCols")
     require(isDefined(labelCol),
       s"WoETransformer requires output column parameter: $labelCol")
 
-    val outputColName = $(outputCol)
-    if (schema.fieldNames.contains(outputColName)) {
-      throw new IllegalArgumentException(s"Output column $outputColName already exists.")
-    }
-    StructType(schema.fields :+ StructField(outputColName, DoubleType, nullable = true))
+    var schemaFields = schema.fields
+    $(inputCols).toSeq.foreach(inputCol => {
+      val outputCol = getOutputColName(inputCol)
+      if (schema.fieldNames.contains(outputCol)) {
+        throw new IllegalArgumentException(s"Output column $outputCol already exists.")
+      }
+      schemaFields = schemaFields :+ StructField(outputCol, DoubleType, nullable = true)
+    })
+    StructType(schemaFields)
+  }
+
+  def getOutputColName(inputCol: String) = {
+    s"${inputCol}_${$(outputColPostFix)}"
   }
 }
 
@@ -35,7 +62,7 @@ private[feature] trait WoEParams
  * The Weight of Evidence or WoE value is a widely used measure of the "strength” of a grouping for separating
  * good and bad risk (default). It is computed from the basic odds ratio:
  *
- *    (Distribution of Good Credit Outcomes) / (Distribution of Bad Credit Outcomes)
+ * (Distribution of Good Credit Outcomes) / (Distribution of Bad Credit Outcomes)
  *
  * Or the ratios of distribution "Good" / distribution "Bad" for short, where distribution refers to the proportion of Good (positive) or Bad (negative) in the
  * respective group, relative to the column totals, i.e., expressed as relative proportions of the total number of Good and Bad.
@@ -58,22 +85,17 @@ class WoETransformer(override val uid: String)
 
   def this() = this(Identifiable.randomUID("woe"))
 
-  /** @group setParam */
-  def setInputCol(value: String): this.type = set(inputCol, value)
-
-  /**
-   * Set the column name which is used as binary classes label column. The data type can be
-   * boolean or numeric, which has at most two distinct values.
-   * @group setParam */
-  def setLabelCol(value: String): this.type = set(labelCol, value)
-
-  /** @group setParam */
-  def setOutputCol(value: String): this.type = set(outputCol, value)
 
   override def fit(dataset: Dataset[_]): WoEModel = {
     transformSchema(dataset.schema, logging = true)
-    val woeTable = WoETransformer.getWoeTable(dataset, $(inputCol), $(labelCol))
-    copyValues(new WoEModel(uid, woeTable).setParent(this))
+    var tableList = new ListBuffer[WoeTableWrapper]()
+    $(inputCols).toSeq.foreach(inputCol => {
+      val table = WoETransformer.getWoeTable(dataset, inputCol, $(labelCol))
+      val outputCol = getOutputColName(inputCol)
+      tableList += WoeTableWrapper(inputCol, outputCol, table)
+    })
+
+    copyValues(new WoEModel(uid, tableList.toSeq).setParent(this))
   }
 
   override def transformSchema(schema: StructType): StructType = {
@@ -85,7 +107,7 @@ class WoETransformer(override val uid: String)
 
 @Experimental
 @Since("2.4.0")
-object WoETransformer{
+object WoETransformer {
 
   def getInformationValue(dataset: DataFrame, categoryCol: String, labelCol: String): Double = {
     val tt = getWoeTable(dataset, categoryCol, labelCol)
@@ -98,13 +120,14 @@ object WoETransformer{
     val tmpTableName = "woe_temp"
     data.createOrReplaceTempView(tmpTableName)
     val err = 0.01
-    val query = s"""
-                   |SELECT
-                   |$categoryCol,
-                   |SUM (IF(CAST ($labelCol AS DOUBLE)=1, 1, 0)) AS 1count,
-                   |SUM (IF(CAST ($labelCol AS DOUBLE)=0, 1, 0)) AS 0count
-                   |FROM $tmpTableName
-                   |GROUP BY $categoryCol
+    val query =
+      s"""
+         |SELECT
+         |$categoryCol,
+         |SUM (IF(CAST ($labelCol AS DOUBLE)=1, 1, 0)) AS 1count,
+         |SUM (IF(CAST ($labelCol AS DOUBLE)=0, 1, 0)) AS 0count
+         |FROM $tmpTableName
+         |GROUP BY $categoryCol
         """.stripMargin
     val groupResult = data.sqlContext.sql(query)
 
@@ -121,23 +144,30 @@ object WoETransformer{
 
 @Experimental
 @Since("2.4.0")
-class WoEModel private[ml] (override val uid: String,
-                            val woeTable: DataFrame)
+class WoEModel private[ml](override val uid: String,
+                           val woeTableWrappers: Seq[WoeTableWrapper])
   extends Model[WoEModel] with WoEParams with MLWritable {
 
   override def transform(dataset: Dataset[_]): DataFrame = {
-    // validateParams()
-    val iv = woeTable.selectExpr("SUM(woe * (p1 - p0)) as iv").first().getAs[Double](0)
-    logInfo(s"iv value for ${$(inputCol)} is: $iv")
+    var processedDataSet: DataFrame = dataset.toDF()
+    woeTableWrappers.foreach(woeTableWrapper => {
+      val woeTable = woeTableWrapper.woeTable
+      val inputCol = woeTableWrapper.inputCol
+      val outputCol = woeTableWrapper.outputCol
 
-    val woeMap = woeTable.rdd.map(r => {
-      val category = r.get(0)
-      val woe = r.getAs[Double]("woe")
-      (category, woe)
-    }).collectAsMap()
+      val iv = woeTable.selectExpr("SUM(woe * (p1 - p0)) as iv").first().getAs[Double](0)
+      logInfo(s"iv value for ${inputCol} is: $iv")
 
-    val trans = udf { factor: Any => woeMap.get(factor) }
-    dataset.withColumn($(outputCol), trans(col($(inputCol))))
+      val woeMap = woeTable.rdd.map(r => {
+        val category = r.get(0)
+        val woe = r.getAs[Double]("woe")
+        (category, woe)
+      }).collectAsMap()
+
+      val trans = udf { factor: Any => woeMap.get(factor) }
+      processedDataSet = processedDataSet.withColumn(outputCol, trans(col(inputCol)))
+    })
+    processedDataSet
   }
 
   @Since("2.4.0")
@@ -147,7 +177,7 @@ class WoEModel private[ml] (override val uid: String,
 
   @Since("2.4.0")
   override def copy(extra: ParamMap): WoEModel = {
-    val copied = new WoEModel(uid, woeTable)
+    val copied = new WoEModel(uid, woeTableWrappers)
     copyValues(copied, extra).setParent(parent)
   }
 
@@ -164,8 +194,11 @@ object WoEModel extends MLReadable[WoEModel] {
 
     override protected def saveImpl(path: String): Unit = {
       DefaultParamsWriter.saveMetadata(instance, path, sc)
-      val dataPath = new Path(path, "data").toString
-      instance.woeTable.repartition(1).write.parquet(dataPath)
+      val wrappers = instance.woeTableWrappers
+      wrappers.foreach(woeWrapperTable => {
+        val dataPath = new Path(path, s"data_${woeWrapperTable.inputCol}").toString
+        woeWrapperTable.woeTable.repartition(1).write.parquet(dataPath)
+      })
     }
   }
 
@@ -175,11 +208,13 @@ object WoEModel extends MLReadable[WoEModel] {
 
     override def load(path: String): WoEModel = {
       val metadata = DefaultParamsReader.loadMetadata(path, sc, className)
-      val dataPath = new Path(path, "data").toString
-      val data = sqlContext.read.parquet(dataPath)
-      val model = new WoEModel(metadata.uid, data)
-      metadata.getAndSetParams(model)
-      model
+
+      //      val dataPath = new Path(path, "data").toString
+      //      val data = sqlContext.read.parquet(dataPath)
+      //      val model = new WoEModel(metadata.uid, data)
+      //      metadata.getAndSetParams(model)
+      //      model
+      ??? //TODO
     }
   }
 
@@ -188,4 +223,6 @@ object WoEModel extends MLReadable[WoEModel] {
 
   @Since("2.4.0")
   override def load(path: String): WoEModel = super.load(path)
+
+  case class WoeTableWrapper(inputCol: String, outputCol: String, val woeTable: DataFrame)
 }
