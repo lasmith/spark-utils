@@ -1,3 +1,17 @@
+// Copyright 2019 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.apache.spark.ml.feature
 
 import org.apache.hadoop.fs.Path
@@ -53,7 +67,7 @@ private[feature] trait WoEParams
     StructType(schemaFields)
   }
 
-  def getOutputColName(inputCol: String) = {
+  def getOutputColName(inputCol: String): String = {
     s"${inputCol}_${$(outputColPostFix)}"
   }
 }
@@ -95,7 +109,7 @@ class WoETransformer(override val uid: String)
       tableList += WoeTableWrapper(inputCol, outputCol, table)
     })
 
-    copyValues(new WoEModel(uid, tableList.toSeq).setParent(this))
+    copyValues(new WoEModel(uid, tableList).setParent(this))
   }
 
   override def transformSchema(schema: StructType): StructType = {
@@ -156,7 +170,7 @@ class WoEModel private[ml](override val uid: String,
       val outputCol = woeTableWrapper.outputCol
 
       val iv = woeTable.selectExpr("SUM(woe * (p1 - p0)) as iv").first().getAs[Double](0)
-      logInfo(s"iv value for ${inputCol} is: $iv")
+      logInfo(s"iv value for $inputCol is: $iv")
 
       val woeMap = woeTable.rdd.map(r => {
         val category = r.get(0)
@@ -224,5 +238,5 @@ object WoEModel extends MLReadable[WoEModel] {
   @Since("2.4.0")
   override def load(path: String): WoEModel = super.load(path)
 
-  case class WoeTableWrapper(inputCol: String, outputCol: String, val woeTable: DataFrame)
+  case class WoeTableWrapper(inputCol: String, outputCol: String, woeTable: DataFrame)
 }

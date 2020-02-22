@@ -1,3 +1,17 @@
+// Copyright 2019 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package ai.mwise.spark
 
 import org.apache.spark.ml.Transformer
@@ -28,11 +42,11 @@ class TimestampFeatureTransformer(override val uid: String) extends Transformer 
 
   final def generateStatement(values: Array[String]): String = {
     val strings: Array[String] = values.map(value =>
-      s""" year(${value}) AS ${value}_year,
-         | month(${value}) AS ${value}_month,
-         | dayofmonth(${value}) AS ${value}_day,
-         | hour(${value}) as ${value}_hour,
-         | minute(${value}) as ${value}_minute, """)
+      s""" year($value) AS ${value}_year,
+         | month($value) AS ${value}_month,
+         | dayofmonth($value) AS ${value}_day,
+         | hour($value) as ${value}_hour,
+         | minute($value) as ${value}_minute, """)
     s"""SELECT *, ${strings.mkString(" ").dropRight(2)} FROM __THIS__""".stripMargin.filter(_ != '\n')
   }
 
@@ -58,7 +72,7 @@ class TimestampFeatureTransformer(override val uid: String) extends Transformer 
     $(inputCols).toSeq.foreach(inputCol => {
       val actualDataType = schema(inputCol).dataType
       require(actualDataType.equals(DataTypes.TimestampType),
-        s"Column ${inputCol} must be TimestampType but was actually $actualDataType.")
+        s"Column $inputCol must be TimestampType but was actually $actualDataType.")
     })
 
     val spark = SparkSession.builder().getOrCreate()

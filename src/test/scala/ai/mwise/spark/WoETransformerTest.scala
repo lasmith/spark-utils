@@ -3,14 +3,11 @@ package ai.mwise.spark
 import org.apache.spark.ml.feature.{WoEModel, WoETransformer}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import org.scalactic.TolerantNumerics
+import org.scalactic.{Equality, TolerantNumerics}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 
 /**
- * <br> <br>
- * Copyright:    Copyright (c) 2019 <br>
- * Company:      MSX-International  <br>
  *
  * @author Laurence Smith
  */
@@ -82,7 +79,7 @@ class WoETransformerTest extends FlatSpec with Matchers with BeforeAndAfter {
   private def checkModel(df: DataFrame, model: WoEModel, actualCol: String, expectedCol: String, featureCol: String): Any = {
     model should not be null
     val epsilon = 1e-4f
-    implicit val doubleEq = TolerantNumerics.tolerantDoubleEquality(epsilon)
+    implicit val doubleEq: Equality[Double] = TolerantNumerics.tolerantDoubleEquality(epsilon)
     val rows = model.transform(df).collect()
 
     for (r <- rows) {

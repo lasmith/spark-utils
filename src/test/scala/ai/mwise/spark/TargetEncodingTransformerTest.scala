@@ -6,15 +6,11 @@ import org.apache.commons.io.FileDeleteStrategy
 import org.apache.spark.ml.feature.{TargetEncodingModel, TargetEncodingTransformer}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import org.scalactic.TolerantNumerics
+import org.scalactic.{Equality, TolerantNumerics}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 
 /**
- * <br> <br>
- * Copyright:    Copyright (c) 2019 <br>
- * Company:      MSX-International  <br>
- *
  * @author Laurence Smith
  */
 class TargetEncodingTransformerTest extends FlatSpec with Matchers with BeforeAndAfter {
@@ -140,16 +136,16 @@ class TargetEncodingTransformerTest extends FlatSpec with Matchers with BeforeAn
     model
   }
 
-  private def runFitAndCheck(df: DataFrame, smoothingEnabled: Boolean, smoothingWeight: Double = 100d) = {
+  private def runFitAndCheck(df: DataFrame, smoothingEnabled: Boolean, smoothingWeight: Double = 100d): Unit = {
     val model: TargetEncodingModel = runFit(df, smoothingEnabled, smoothingWeight)
     checkDataFrame(df, model)
   }
 
-  private def checkDataFrame(df: DataFrame, model: TargetEncodingModel) = {
+  private def checkDataFrame(df: DataFrame, model: TargetEncodingModel): Unit = {
     // Then
     model should not be null
     val epsilon = 1e-4f
-    implicit val doubleEq = TolerantNumerics.tolerantDoubleEquality(epsilon)
+    implicit val doubleEq: Equality[Double] = TolerantNumerics.tolerantDoubleEquality(epsilon)
     val rows = model.transform(df).collect()
     for (r <- rows) {
       val encVal = r.getAs[Double]("te")

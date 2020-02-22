@@ -1,14 +1,10 @@
 package ai.mwise.spark
 
 import org.apache.spark.sql.SparkSession
-import org.scalactic.TolerantNumerics
+import org.scalactic.{Equality, TolerantNumerics}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 /**
- * <br> <br> 
- * Copyright:    Copyright (c) 2019 <br> 
- * Company:      MSX-International  <br>
- *
  * @author Laurence Smith
  */
 class StatsCalculatorTest extends FlatSpec with Matchers with BeforeAndAfter {
@@ -93,7 +89,7 @@ class StatsCalculatorTest extends FlatSpec with Matchers with BeforeAndAfter {
                             sensitivity: Double, specificity: Double, accuracy: Double, f1: Double, mcc: Double): Unit = {
     def checkNumberOrNan(actual: Double, expected: Double, clue: String) = {
       val epsilon = 1e-4f
-      implicit val doubleEq = TolerantNumerics.tolerantDoubleEquality(epsilon)
+      implicit val doubleEq: Equality[Double] = TolerantNumerics.tolerantDoubleEquality(epsilon)
       withClue(clue) {
         if (expected.isNaN) {
           assert(actual.isNaN)
@@ -104,7 +100,7 @@ class StatsCalculatorTest extends FlatSpec with Matchers with BeforeAndAfter {
       }
     }
 
-    stats should not be (null)
+    stats should not be null
     checkNumberOrNan(stats.tp, tp, "tp")
     checkNumberOrNan(stats.tn, tn, "tn")
     checkNumberOrNan(stats.fp, fp, "fp")

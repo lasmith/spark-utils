@@ -5,9 +5,6 @@ import org.apache.spark.sql.{Row, SparkSession}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 /**
- * <br> <br> 
- * Copyright:    Copyright (c) 2019 <br> 
- * Company:      MSX-International  <br>
  *
  * @author Laurence Smith
  */
