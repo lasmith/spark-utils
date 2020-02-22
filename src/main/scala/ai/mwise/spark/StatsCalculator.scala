@@ -1,4 +1,4 @@
-package com.msxi.mwise.autopay
+package ai.mwise.spark
 
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics

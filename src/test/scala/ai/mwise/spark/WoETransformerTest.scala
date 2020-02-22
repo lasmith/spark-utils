@@ -1,4 +1,4 @@
-package com.msxi.mwise.autopay
+package ai.mwise.spark
 
 import org.apache.spark.ml.feature.{WoEModel, WoETransformer}
 import org.apache.spark.sql.types._

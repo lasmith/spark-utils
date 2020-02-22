@@ -1,4 +1,4 @@
-package com.msxi.mwise.autopay
+package ai.mwise.spark
 
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SparkSession}

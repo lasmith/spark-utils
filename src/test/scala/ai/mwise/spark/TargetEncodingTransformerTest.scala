@@ -1,4 +1,4 @@
-package com.msxi.mwise.autopay
+package ai.mwise.spark
 
 import java.io.File
 

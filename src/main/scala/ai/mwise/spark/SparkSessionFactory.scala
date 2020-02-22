@@ -1,4 +1,4 @@
-package com.msxi.mwise.autopay
+package ai.mwise.spark
 
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
