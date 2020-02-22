@@ -15,7 +15,7 @@ import org.apache.spark.sql.{Dataset, Row}
  * @author Laurence Smith
  */
 object StatsCalculator {
-  val logger = Logger(ModelTrainer.getClass)
+  val logger = Logger(StatsCalculator.getClass)
 
   /**
    * Calculate the classification statistics. This covers areas currently not supported by the BinaryClassificationMetrics from Spark.
