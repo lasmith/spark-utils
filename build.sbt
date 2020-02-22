@@ -1,12 +1,8 @@
-name := "com/msxi/mwise/autopay"
-version := "1.1.0"
+name := "spark-utils"
+version := "1.2.0"
 scalaVersion := "2.12.4"
 
-organization := "com.msxi.mwise"
-
-resolvers += "Azure repository" at "https://pkgs.dev.azure.com/msxi-berlin/_packaging/mwise/maven/v1"
-
-credentials += Credentials(new File(sys.env.getOrElse("SBT_CREDENTIALS", sys.props.get("user.home").get + "/.sbt/.credentials")))
+organization := "ai.mwise.spsrk"
 
 artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
   artifact.name + "." + artifact.extension
