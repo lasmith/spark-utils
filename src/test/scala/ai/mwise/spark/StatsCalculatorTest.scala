@@ -7,14 +7,9 @@ import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 /**
  * @author Laurence Smith
  */
-class StatsCalculatorTest extends FlatSpec with Matchers with BeforeAndAfter {
-  var sparkSession: SparkSession = _
+class StatsCalculatorTest extends FlatSpec with Matchers with SparkSessionTestWrapper {
   val label = "label"
   val target = "target"
-
-  before {
-    sparkSession = SparkSessionFactory.createLocalSparkContext()
-  }
 
 
   // --------------------------------------------------------------------------------

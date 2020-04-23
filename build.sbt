@@ -7,6 +7,7 @@ organization := "ai.mwise.spsrk"
 artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
   artifact.name + "." + artifact.extension
 }
+parallelExecution in Test := false
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % "2.4.3",

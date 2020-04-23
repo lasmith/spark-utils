@@ -11,12 +11,7 @@ import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
  *
  * @author Laurence Smith
  */
-class WoETransformerTest extends FlatSpec with Matchers with BeforeAndAfter {
-  var sparkSession: SparkSession = _
-
-  before {
-    sparkSession = SparkSessionFactory.createLocalSparkContext()
-  }
+class WoETransformerTest extends FlatSpec with Matchers with SparkSessionTestWrapper {
 
   behavior of "fit"
 

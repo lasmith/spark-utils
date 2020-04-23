@@ -8,13 +8,7 @@ import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
  *
  * @author Laurence Smith
  */
-class TimestampFeatureTransformerTest extends FlatSpec with Matchers with BeforeAndAfter {
-
-  var sparkSession: SparkSession = _
-  before {
-    sparkSession = SparkSessionFactory.createLocalSparkContext()
-  }
-
+class TimestampFeatureTransformerTest extends FlatSpec with Matchers with SparkSessionTestWrapper {
 
   behavior of "transform"
   it should " work on an empty dataset and do nothing" in {

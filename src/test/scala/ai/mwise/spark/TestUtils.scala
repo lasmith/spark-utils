@@ -15,7 +15,7 @@ object TestUtils {
   }
 
   def getTestResourceDir: File = {
-    val sampleUrl = getClass.getClassLoader.getResource("sample_claims.csv")
+    val sampleUrl = getClass.getClassLoader.getResource("sample_dates.csv")
     new File(sampleUrl.getFile).getParentFile
   }
 }
