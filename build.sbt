@@ -2,7 +2,7 @@ name := "spark-utils"
 version := "1.2.0"
 scalaVersion := "2.12.4"
 
-organization := "ai.mwise.spsrk"
+organization := "ai.mwise.spark"
 
 artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
   artifact.name + "." + artifact.extension
